@@ -1,6 +1,52 @@
-from flask import Flask, jsonify, request
+from datetime import datetime, timedelta
+import uuid
+from flask import Flask, request
+from werkzeug.security import generate_password_hash,check_password_hash
+from flask_jwt_extended import create_access_token,JWTManager, jwt_required,get_jwt
+
 
 app = Flask(__name__)
+
+app.config['JWT_SECRET_KEY'] = 'super-secret'
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=15)
+
+jwt=JWTManager(app)
+
+def get_token_role():
+    try:
+        claims = get_jwt()
+        return claims.get('role','user')
+    except:
+            return None
+
+#Definir Roles  
+def manager_required(f):
+    @jwt_required()
+    def custom_validation(*args, **kwargs):
+        role=get_token_role()
+        if role == 'gerente':
+            return f(*args, **kwargs)
+        else:
+            print(f"Debug Role: {role}")
+            return {
+                "Error": "Permisos insuficientes", 
+                "Message": "El usuario no tiene permisos de Gerente"
+            }, 403  
+    return custom_validation
+
+def admin_required(f):
+    @jwt_required()
+    def custom_validation(*args, **kwargs):
+        role=get_token_role()
+        if role == 'administrador':
+            return f(*args, **kwargs)
+        else:
+            print(f"Debug Role: {role}")
+            return {
+                "Error": "Permisos insuficientes", 
+                "Message": "El usuario no tiene permisos de Administrador"
+            }, 403  
+    return custom_validation
 
 @app.route('/')
 def home():
@@ -22,48 +68,42 @@ def data(name):
         phase = phase.upper()
     return "<h1>"+phase+"</h1>"
 
-pets = { "Firulais": {"raza": "Hamster", "edad": 5},
-    "Coco": {"raza": "Gato", "edad": 3},
-    "Mila": {"raza": "Perro", "edad": 2 }}
-
-@app.route('/pet/<string:name>')
-def get_pets(name):
-    if name in pets:
-        return pets[name]
-    else:
-        return {"error": "No se encontró la mascota"}, 404
-    
 #Tarea aplicación Flask con tu tema favorito PELICULAS
 movies = {
-    "Rapidos y Furiosos": {
+    "1": {
+        "nombre": "Rapidos y Furiosos",
         "genero": "Acción",
         "año": 2010,
         "director": "Justin Lin",
         "duracion_min": 107,
         "clasificacion": "Mayores de 13 años"
     },
-    "Zootopia": {
+    "2": {
+        "nombre": "Zootopia",
         "genero": "Aventura",
         "año": 2016,
         "director": "Byron Howard",
         "duracion_min": 108,
         "clasificacion": "Todos los públicos"
     },
-    "El Paseo 7": {
+    "3": {
+        "nombre": "El Paseo 7",
         "genero": "Comedia",
         "año": 2023,
         "director": "Harold Trompetero",
         "duracion_min": 90,
         "clasificacion": "Mayores de 18 años"
     },
-    "Avengers": {
+    "4": {
+        "nombre": "Avengers",
         "genero": "Acción",
         "año": 2020,
         "director": "Joss Whedon",
         "duracion_min": 143,
         "clasificacion": "Mayores de 13 años"
     },
-    "La Oscuridad": {
+    "5": {
+        "nombre": "La Oscuridad",
         "genero": "Terror",
         "año": 2021,
         "director": "Desconocido",
@@ -72,68 +112,150 @@ movies = {
     }
 }
 
+# Consultar o eliminar una película por id
+@app.route('/api/movies/<string:id>', methods=["GET", "DELETE"])
+def get_all_movies(id):
+    print(f"Method: {request.method}")
+    if request.method == "GET":
+        if id in movies:
+            return movies[id], 200
+        else:
+            return {"error": "Película con id "+id+" no encontrada"}, 404
+    else:
+        if id in movies:
+            element = movies[id]
+            del movies[id]
+            return element, 200
+        else:
+            return {}, 204
+
 #Obtener todas las películas (con filtros)
-@app.route("/movies", methods=["GET"])
+@app.route('/api/movies/')
+@jwt_required()
 def get_movies():
-    genero = request.args.get("genero")
-    año = request.args.get("año")
-
-    resultado = movies
-
-    if genero:
-        resultado = {
-            k: v for k, v in resultado.items()
-            if v["genero"].lower() == genero.lower()
-        }
-
-    if año:
-        resultado = {
-            k: v for k, v in resultado.items()
-            if str(v["año"]) == año
-        }
-
-    return jsonify(resultado)
-
-# Obtener TODAS las películas
-@app.route("/movies", methods=["GET"])
-def get_all_movies():
-    return jsonify(movies)
-
-#Obtener un tema
-@app.route("/movies/<string:nombre>", methods=["GET"])
-def get_movie(nombre):
-    movie = movies.get(nombre)
-    if movie:
-        return jsonify(movie)
-    return jsonify({"error": "Película no encontrada"}), 404
+    ano= request.args.get("año",0)
+    filtered = list(filter(lambda key: movies[key]["año"] >= int(ano), movies))
+    return list(map(lambda k: movies[k], filtered))
 
 #Agregar una nueva película
-@app.route("/movies", methods=["POST"])
+@app.route('/api/movies/', methods=["POST"])
+@manager_required
 def add_movie():
-    data = request.json
-    nombre = data.get("nombre")
+    body = request.json
+    copy = body.copy()
+    new_id =body["id"]
+    if new_id in movies:
+        return {"Message": "La película con id "+new_id+" ya existe"}, 409    
+    else:
+        del body["id"]
+        movies[new_id] = body
+        return copy, 201
 
-    if not nombre:
-        return jsonify({"error": "El nombre es obligatorio"}), 400
+# Actualizar una película
+@app.route('/api/movies/<string:id>', methods=["PATCH"])
+@jwt_required()
+def put_movies(id):
+    body = request.json
+    genero=body.get("genero")
+    if id in movies:
+        if genero != None:
+            movies[id]["genero"]=genero
+        return movies[id], 200
+    else:
+        return {"error": "Película con id "+id+" no encontrada"}, 404
+    
+#Autenticación básica
+users = [
+            {
+            "id": "admin-1",
+            "username": "admin",
+            "password": generate_password_hash(123456),
+            "role": "administrador",
+            "created_at": datetime.now()
+        }
+        ]
 
-    movies[nombre] = {
-        "genero": data.get("genero"),
-        "año": data.get("año"),
-        "director": data.get("director"),
-        "duracion_min": data.get("duracion_min"),
-        "clasificacion": data.get("clasificacion")
-    }
+def get_users_by_username(username):
+    return list(filter(lambda u: u['username'] == username, users)) 
 
-    return jsonify({"mensaje": "Película agregada"}), 201
+#Sign Administrador
+@app.route('/api/admin/signIn', methods=["POST"])
+@admin_required
+def sign_in_admin():
+    if not request.json or 'username' not in request.json or 'password' not in request.json:
+        return {"Error": "Datos Invalidos",
+                "Message": "Se requieren Username y Password"}, 400
+    else:
+        username = request.json["username"]
+        password = request.json["password"]
+        #role = request.json["role"]
+    if len(get_users_by_username(username)) > 0:
+        return {"Error": "Datos Invalidos",
+                "Message": "El usuario ya existe"}, 400
+    else:
+        user_id = 'user-' + str(uuid.uuid4())
+        new_user = {
+            "id": user_id,
+            "username": username,
+            "password": generate_password_hash(password),
+            "role": "gerente",
+            "created_at": datetime.now()
+        }
+        users.append(new_user)
+        return {'user': username}, 201
+    
+#Sign In Publico
+@app.route('/api/singIn', methods=["POST"])
+def sign_in():
+    if not request.json or 'username' not in request.json or 'password' not in request.json:
+        return {"Error": "Datos Invalidos",
+                "Message": "Se requieren Username y Password"}, 400
+    else:
+        username = request.json["username"]
+        password = request.json["password"]
+        #role = request.json["role"]
+    if len(get_users_by_username(username)) > 0:
+        return {"Error": "Datos Invalidos",
+                "Message": "El usuario ya existe"}, 400
+    else:
+        user_id = 'user-' + str(uuid.uuid4())
+        new_user = {
+            "id": user_id,
+            "username": username,
+            "password": generate_password_hash(password),
+            "role": "cliente",
+            "created_at": datetime.now()
+        }
+        users.append(new_user)
+        return {'user': username}, 201
 
-#Eliminar una película
-@app.route("/movies/<string:nombre>", methods=["DELETE"])
-def delete_movie(nombre):
-    if nombre in movies:
-        del movies[nombre]
-        return jsonify({"mensaje": "Película eliminada"}), 200
-    return jsonify({"error": "Película no encontrada"}), 404
+@app.route('/api/user/<string:username>', methods=["GET"])
+def get_user(username):
+    return get_users_by_username(username)[0], 200
+    
+@app.route('/api/login', methods=["POST"])
+def login():
+    if not request.json or 'username' not in request.json or 'password' not in request.json:
+        return {"Error": "Datos Invalidos",
+                "Message": "Se requieren Username y Password"}, 400
+    else:
+        username = request.json["username"]
+        body_password = request.json["password"]
+    if len(get_users_by_username(username)) == 0:
+        return {"Error": "Datos Invalidos",
+                "Message": "El usuario no existe"}, 400
+    else:
+        user = get_users_by_username(username)[0]
+        current_password= user["password"]
 
+        if  check_password_hash(current_password, body_password):
+            token = create_access_token(identity=username,additional_claims={"user_id": user.get("user_id"),"role": user.get("role")})
+            return {'Message': 'Usuario Autenticado',
+                    'Token': token}, 200
+        else:
+            return {"Error": "Datos Invalidos",
+                    "Message": "Datos Incorrectos"}, 401
+    
 if __name__ == '__main__':
     app.run(debug=True,
             port=8001,
