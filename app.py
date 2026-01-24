@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import uuid
+import os
 from flask import Flask, request
 from werkzeug.security import generate_password_hash,check_password_hash
 from flask_jwt_extended import create_access_token,JWTManager, jwt_required,get_jwt
@@ -8,6 +9,7 @@ from flask_jwt_extended import create_access_token,JWTManager, jwt_required,get_
 app = Flask(__name__)
 
 app.config['JWT_SECRET_KEY'] = 'super-secret'
+#app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=15)
 
 jwt=JWTManager(app)
@@ -36,7 +38,7 @@ def manager_required(f):
 
 def admin_required(f):
     @jwt_required()
-    def custom_validation(*args, **kwargs):
+    def custom_validation_admin(*args, **kwargs):
         role=get_token_role()
         if role == 'administrador':
             return f(*args, **kwargs)
@@ -46,7 +48,7 @@ def admin_required(f):
                 "Error": "Permisos insuficientes", 
                 "Message": "El usuario no tiene permisos de Administrador"
             }, 403  
-    return custom_validation
+    return custom_validation_admin
 
 @app.route('/')
 def home():
@@ -169,7 +171,7 @@ users = [
             {
             "id": "admin-1",
             "username": "admin",
-            "password": generate_password_hash(123456),
+            "password": generate_password_hash("123456"),
             "role": "administrador",
             "created_at": datetime.now()
         }
