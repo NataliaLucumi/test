@@ -1,18 +1,40 @@
 from datetime import datetime, timedelta
 import uuid
-import os
+#import os
+from pymongo import MongoClient
 from flask import Flask, request
+from bson.objectid import ObjectId
 from werkzeug.security import generate_password_hash,check_password_hash
 from flask_jwt_extended import create_access_token,JWTManager, jwt_required,get_jwt
-
+#from dotenv import load_dotenv
 
 app = Flask(__name__)
+#load_dotenv()
+host='mongodb://localhost'
+port=27017
+db_name='movies_db'
+user_collection= None
+movies_collection=None
 
 app.config['JWT_SECRET_KEY'] = 'super-secret'
 #app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=15)
 
 jwt=JWTManager(app)
+
+def connect_db():
+    try:
+        client = MongoClient(host+":"+str(port)+"/")
+        db = client[db_name]
+        client.admin.command('ping')
+        global user_collection
+        user_collection = db.users 
+        global movies_collection
+        movies_collection = db.movies
+        print("Connected to MongoDB successfully!")
+    except Exception as e:
+        print(f"Error connecting to MongoDB: {e}")
+        return None
 
 def get_token_role():
     try:
@@ -21,6 +43,23 @@ def get_token_role():
     except:
             return None
 
+def check_if_admin_exists(username):
+    global user_collection
+    query= {"username": {"$eq": username}}
+    return list(user_collection.find(query))
+
+def create_user(usr):
+    global user_collection
+    result = user_collection.insert_one(usr)
+    usr["_id"]=str(result.inserted_id)
+    return usr
+
+def create_admin_if_exist(usr):
+    check_admin= check_if_admin_exists(usr["username"])
+    if len(check_admin)>0:
+        return check_admin
+    else:
+        return create_user(usr)
 #Definir Roles  
 def manager_required(f):
     @jwt_required()
@@ -174,7 +213,7 @@ users = [
             "password": generate_password_hash("123456"),
             "role": "administrador",
             "created_at": datetime.now()
-        }
+            }
         ]
 
 def get_users_by_username(username):
@@ -216,20 +255,19 @@ def sign_in():
         username = request.json["username"]
         password = request.json["password"]
         #role = request.json["role"]
-    if len(get_users_by_username(username)) > 0:
+    if len(check_if_admin_exists(username)) > 0:
         return {"Error": "Datos Invalidos",
                 "Message": "El usuario ya existe"}, 400
     else:
-        user_id = 'user-' + str(uuid.uuid4())
         new_user = {
-            "id": user_id,
             "username": username,
             "password": generate_password_hash(password),
-            "role": "cliente",
+            "role": 'cliente',
             "created_at": datetime.now()
         }
-        users.append(new_user)
-        return {'user': username}, 201
+        
+        user_created= create_user(new_user)
+        return {'user': username, '_id': user_created["_id"]}, 201
 
 @app.route('/api/user/<string:username>', methods=["GET"])
 def get_user(username):
@@ -259,6 +297,14 @@ def login():
                     "Message": "Datos Incorrectos"}, 401
     
 if __name__ == '__main__':
+    connect_db()
+    admin_user= {
+            "username": "admin",
+            "password": generate_password_hash("123456"),
+            "role": "administrador",
+            "created_at": datetime.now()
+        }
+    print(f"Admin user created: {create_admin_if_exist(admin_user)}")
     app.run(debug=True,
             port=8001,
             host='0.0.0.0')
