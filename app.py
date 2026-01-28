@@ -1,14 +1,20 @@
 from datetime import datetime, timedelta
+from unittest import result
 import uuid
 #import os
 from pymongo import MongoClient
-from flask import Flask, request
+from flask import Flask, render_template, request
 from bson.objectid import ObjectId
 from werkzeug.security import generate_password_hash,check_password_hash
 from flask_jwt_extended import create_access_token,JWTManager, jwt_required,get_jwt
 #from dotenv import load_dotenv
 
 app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return render_template('index.html')
+
 #load_dotenv()
 host='mongodb://localhost'
 port=27017
@@ -36,13 +42,6 @@ def connect_db():
         print(f"Error connecting to MongoDB: {e}")
         return None
 
-def get_token_role():
-    try:
-        claims = get_jwt()
-        return claims.get('role','user')
-    except:
-            return None
-
 def check_if_admin_exists(username):
     global user_collection
     query= {"username": {"$eq": username}}
@@ -60,12 +59,21 @@ def create_admin_if_exist(usr):
         return check_admin
     else:
         return create_user(usr)
+    
+
+def get_token_role():
+    try:
+        claims = get_jwt()
+        return claims.get('role','user')
+    except:
+            return None
+    
 #Definir Roles  
 def manager_required(f):
     @jwt_required()
     def custom_validation(*args, **kwargs):
         role=get_token_role()
-        if role == 'gerente':
+        if role == 'gerente' or role == 'administrador':
             return f(*args, **kwargs)
         else:
             print(f"Debug Role: {role}")
@@ -88,26 +96,6 @@ def admin_required(f):
                 "Message": "El usuario no tiene permisos de Administrador"
             }, 403  
     return custom_validation_admin
-
-@app.route('/')
-def home():
-    return "Hello, World!"
-
-@app.route('/hello/<string:name>')
-def grettings(name):
-    return "<h1>Hello! "+name+"</h1>"
-
-saludo ={"ES": "Hola Mundo!",
-         "EN": "Hello World!",} 
-
-@app.route('/dynamic-hello/<string:name>/')
-def data(name):
-    language = request.args.get("language","EN")
-    uppercase = request.args.get("uppercase",False)
-    phase= saludo[language] + " " + name
-    if uppercase == "true" or uppercase == "True":
-        phase = phase.upper()
-    return "<h1>"+phase+"</h1>"
 
 #Tarea aplicación Flask con tu tema favorito PELICULAS
 movies = {
@@ -155,42 +143,49 @@ movies = {
 
 # Consultar o eliminar una película por id
 @app.route('/api/movies/<string:id>', methods=["GET", "DELETE"])
+@jwt_required()
 def get_all_movies(id):
-    print(f"Method: {request.method}")
+    global movies_collection
+    found = movies_collection.find_one({"_id": ObjectId(id)})
+    found["_id"]=str(found["_id"])
+
     if request.method == "GET":
-        if id in movies:
-            return movies[id], 200
+        if id is not None:
+            return found, 200
         else:
             return {"error": "Película con id "+id+" no encontrada"}, 404
     else:
-        if id in movies:
-            element = movies[id]
-            del movies[id]
-            return element, 200
+        if id is not None:
+            movies_collection.delete_one({"_id": ObjectId(id)})
+            return found, 200
         else:
             return {}, 204
-
+def normialize_movie(item):
+    item["_id"]=str(item["_id"])
+    return item
 #Obtener todas las películas (con filtros)
 @app.route('/api/movies/')
 @jwt_required()
 def get_movies():
     ano= request.args.get("año",0)
-    filtered = list(filter(lambda key: movies[key]["año"] >= int(ano), movies))
-    return list(map(lambda k: movies[k], filtered))
+    query={"año": {"$gte": ano}}
+    global movies_collection
+    result= list(movies_collection.find(query))
+    results = list(map(lambda mov: normialize_movie(mov), result))
+    return results,200
+
+def insert_movie(movie):
+    global movies_collection
+    result = movies_collection.insert_one(movie)
+    movie["_id"]=str(result.inserted_id)
+    return movie
 
 #Agregar una nueva película
 @app.route('/api/movies/', methods=["POST"])
 @manager_required
 def add_movie():
-    body = request.json
-    copy = body.copy()
-    new_id =body["id"]
-    if new_id in movies:
-        return {"Message": "La película con id "+new_id+" ya existe"}, 409    
-    else:
-        del body["id"]
-        movies[new_id] = body
-        return copy, 201
+    return insert_movie(request.json), 200
+       
 
 # Actualizar una película
 @app.route('/api/movies/<string:id>', methods=["PATCH"])
@@ -198,10 +193,15 @@ def add_movie():
 def put_movies(id):
     body = request.json
     genero=body.get("genero")
-    if id in movies:
+    found=movies_collection.find_one({"_id": ObjectId(id)})
+    query = {"$set":{}} 
+    if found is not None:
         if genero != None:
-            movies[id]["genero"]=genero
-        return movies[id], 200
+            query["$set"]["genero"]= genero
+            movies_collection.update_one({"_id": ObjectId(id)},query)
+            found=movies_collection.find_one({"_id": ObjectId(id)})
+            found["_id"]=str(found["_id"])
+        return found, 200
     else:
         return {"error": "Película con id "+id+" no encontrada"}, 404
     
@@ -281,11 +281,11 @@ def login():
     else:
         username = request.json["username"]
         body_password = request.json["password"]
-    if len(get_users_by_username(username)) == 0:
+    if len(check_if_admin_exists(username)) == 0:
         return {"Error": "Datos Invalidos",
                 "Message": "El usuario no existe"}, 400
     else:
-        user = get_users_by_username(username)[0]
+        user = check_if_admin_exists(username)[0]
         current_password= user["password"]
 
         if  check_password_hash(current_password, body_password):
@@ -305,6 +305,8 @@ if __name__ == '__main__':
             "created_at": datetime.now()
         }
     print(f"Admin user created: {create_admin_if_exist(admin_user)}")
-    app.run(debug=True,
+
+app.run(debug=True,
             port=8001,
             host='0.0.0.0')
+    
