@@ -37,7 +37,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'staticpages',
+    'rest_framework',    # Para API JSON
+    'staticpages',       # Del ejercicio 1
+    'dynamicpages',      # Nueva app
 ]
 
 MIDDLEWARE = [
@@ -117,14 +119,14 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-# furniture_app/settings.py
+# movies_app/settings.py
 import mongoengine
 
 # Conexión a MongoDB
 mongoengine.connect(
-    db='furniture_catalog_db',
+    db='movies_db',
     host='localhost',
-    port=27017
+    port=8000
 )
 
 # Deshabilitar la base de datos de Django (usamos MongoDB)

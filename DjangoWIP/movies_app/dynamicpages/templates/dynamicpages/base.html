@@ -1,0 +1,37 @@
+<!-- dynamicpages/templates/dynamicpages/base.html -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %} Catálogo de Películas{% endblock %}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f8f9fa; }
+        .container { max-width: 800px; margin: 0 auto; background: white; 
+                    padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .furniture-item { border: 1px solid #ddd; padding: 20px; margin: 20px 0; border-radius: 5px; }
+        .meta { color: #666; font-size: 0.9em; margin-top: 10px; }
+        nav a { margin-right: 15px; text-decoration: none; color: #007cba; font-weight: bold; }
+        nav a:hover { text-decoration: underline; }
+        h1 a { color: #333; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1><a href="{% url 'lista_movies' %}">🪑 Catálogo de Películas</a></h1>
+            <nav>
+                <a href="../../../staticpages/">📄 Static Pages</a>
+                <a href="/dynamicpages/">🪑 Catálogo</a>
+                <a href="/api/">🔌 API JSON</a>
+            </nav>
+        </div>
+    </header>
+    
+    <main class="container">
+        {% block content %}
+        <!-- Aquí se insertará el contenido específico de cada página -->
+        {% endblock %}
+    </main>
+</body>
+</html>

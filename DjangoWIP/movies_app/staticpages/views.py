@@ -19,12 +19,12 @@ def home(request):
     <body>
         <div class="container">
             <nav>
-                <a href="/static-pages/">🏠 Home</a>
-                <a href="/static-pages/about/">ℹ️ About</a>
-                <a href="/static-pages/contact/">📧 Contact</a>
+                <a href="/staticpages/">🏠 Home</a>
+                <a href="/staticpages/about/">ℹ️ About</a>
+                <a href="/staticpages/contact/">📧 Contact</a>
             </nav>
             
-            <h1>🪑 ¡Bienvenido a Furniture Catalog!</h1>
+            <h1>🪑 ¡Bienvenido a Catalogo de Peliculas!</h1>
             <p><strong>¿Qué es contenido estático?</strong></p>
             <ul>
                 <li>✅ HTML completamente fijo</li>
@@ -50,7 +50,7 @@ def about(request):
         <style>body { font-family: Arial; margin: 40px; }</style>
     </head>
     <body>
-        <h1>📋 Acerca del Catálogo de Muebles</h1>
+        <h1>📋 Acerca del Catálogo de Peliculas</h1>
         <p>Esta es una página estática creada con Django.</p>
         <p><strong>Características:</strong></p>
         <ul>
@@ -58,7 +58,7 @@ def about(request):
             <li>HTML fijo definido en views.py</li>
             <li>Respuesta inmediata</li>
         </ul>
-        <a href="/static-pages/">← Volver al Home</a>
+        <a href="/staticpages/">← Volver al Home</a>
     </body>
     </html>
     """
@@ -100,7 +100,7 @@ def contact(request):
             </button>
         </form>
         
-        <p><a href="/static-pages/">← Volver al Home</a></p>
+        <p><a href="/staticpages/">← Volver al Home</a></p>
     </body>
     </html>
     """

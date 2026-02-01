@@ -1,0 +1,31 @@
+<!-- dynamicpages/templates/dynamicpages/detalle_mueble.html -->
+{% extends 'dynamicpages/base.html' %}
+
+{% block title %}{{ movie.nombre }}{% endblock %}
+
+{% block content %}
+<article>
+    <h2>{{ movies.nombre }}</h2>
+    <div class="meta">
+        Por <strong>{{ movies.director }}</strong> 
+    </div>
+    
+    <div style="margin-top: 20px; line-height: 1.6;">
+        <p><strong>Clasificación:</strong></p>
+        {{ movies.clasificacion|linebreaks }}
+        
+    </div>
+    
+    {% comment %}
+    Los filtros más comunes:
+    - |linebreaks: Convierte saltos de línea en <br> y <p>
+    - |date:"formato": Formatea fechas
+    - |truncatewords:N: Corta texto a N palabras
+    - |length: Cuenta elementos
+    {% endcomment %}
+</article>
+
+<div style="margin-top: 30px;">
+    <a href="{% url 'lista_movies' %}">← Volver al catálogo</a>
+</div>
+{% endblock %}

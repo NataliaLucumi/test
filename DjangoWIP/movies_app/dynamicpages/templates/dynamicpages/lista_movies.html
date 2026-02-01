@@ -1,0 +1,27 @@
+<!-- dynamicpages/templates/dynamicpages/lista_movies.html -->
+{% extends 'dynamicpages/base.html' %}
+
+{% block title %}{{ titulo_pagina }}{% endblock %}
+
+{% block content %}
+<h2>🪑 Catálogo de Películas (Desde Base de Datos)</h2> 
+
+{% for movie in movies %}
+    <div class="furniture-item">
+        <h3><a href="{% url 'detalle_movies' movies.id %}">{{ movie.nombre }}</a></h3>
+        <p>{{ movie.genero|truncatewords:30 }}</p>
+        <p><strong>Clasificación:</strong> {{ movie.clasificacion }}</p>
+        <p><strong>Año:</strong> {{ movie.año }}</p>
+    
+    </div>
+{% empty %}
+    <div class="furniture-item">
+        <h3>No hay peliculas aún</h3>
+        <p>¡Pronto habrá contenido!</p>
+    </div>
+{% endfor %}
+
+<div style="margin-top: 30px; text-align: center;">
+    <small>Total de peliculas: {{ movies|length }}</small>
+</div>
+{% endblock %}
